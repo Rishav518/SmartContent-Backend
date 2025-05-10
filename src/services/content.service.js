@@ -1,6 +1,6 @@
 const logger = require('../utils/logger');
 const validator = require('./validator.service');
-const { generateContentWithModel } = require('../utils/modelService');
+const { generateContentWithModel, runOllamaEmbed } = require('../utils/modelService');
 
 
 /**
@@ -35,6 +35,11 @@ class ContentService {
       
       // Check if content is similar to existing content
       const similarityCheck = await validator.checkContentSimilarity(contentData.content);
+      const embedding = await runOllamaEmbed(contentData.content);
+      const embeddingSimilarity = await validator.checkEmbeddingSimilarity(embedding);
+      contentData.embedding = embedding;
+      contentData.similarityScore = embeddingSimilarity.similarityScore;
+      logger.info(`Embedding similarity score: ${embeddingSimilarity.similarityScore} ${embeddingSimilarity.isSimilar}`);
       
       if (similarityCheck.isSimilar) {
         logger.info(`Generated content is too similar to existing content (${similarityCheck.similarityScore}), regenerating`);

@@ -1,8 +1,9 @@
-const { generateTopicWithModel } = require('../utils/modelService');
+const { generateTopicWithModel, runOllamaEmbed } = require('../utils/modelService');
 const logger = require('../utils/logger');
 const config = require('../config');
 const validator = require('./validator.service');
 const { default: axios } = require('axios');
+const { model } = require('mongoose');
 
 /**
  * Service for generating blog topics
@@ -37,12 +38,13 @@ class TopicService {
           avoidDuplicate: topicData.title
         });
       }
+      const siimilarityCheck = await validator.checkContentSimilarity(topicData.title);
+      logger.info(`Topic similarity check: ${siimilarityCheck.isSimilar}`);
       
-      logger.info(`Generated unique topic: "${topicData.title}"`);
       return {
         title: topicData.title,
         category: topicData.category,
-        subcategory: topicData.subcategory
+        subcategory: topicData.subcategory,
       };
       ;
     } catch (error) {

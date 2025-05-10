@@ -7,11 +7,7 @@ const { getAllBlogTitles } = require('../utils/modelService');
  * Service for validating topics and checking content duplication
  */
 class ValidatorService {
-  /**
-   * Check if a topic title is unique in the database.
-   * @param {string} title - The title to check
-   * @returns {Promise<boolean>} - Whether the title is unique
-   */
+
   async isTopicUnique(title) {
     if (!title) return false;
 
@@ -50,11 +46,6 @@ class ValidatorService {
     }
   }
 
-  /**
-   * Check if provided content is too similar to existing posts.
-   * @param {string} content - The content to check
-   * @returns {Promise<Object>} - Similarity check result
-   */
   async checkContentSimilarity(content) {
     if (!content || content.length < 100) {
       return { isSimilar: false, similarityScore: 0 };
@@ -83,11 +74,6 @@ class ValidatorService {
     }
   }
 
-  /**
-   * Extract key phrases for similarity comparison.
-   * @param {string} content - Blog content
-   * @returns {Array<string>} - Key phrases
-   */
   extractKeyPhrases(content) {
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 30);
     const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 100);
@@ -98,12 +84,6 @@ class ValidatorService {
     ];
   }
 
-  /**
-   * Pick random elements from an array.
-   * @param {Array} array - Input array
-   * @param {number} count - Number of elements to return
-   * @returns {Array} - Random subset
-   */
   getRandomElements(array, count) {
     const result = [];
     const usedIndices = new Set();
@@ -125,6 +105,50 @@ class ValidatorService {
     .replace(/[^a-z0-9]+/g, '-') // Replace non-alphanumeric characters with '-'
     .replace(/^-|-$/g, ''); // Remove leading/trailing '-'
   }
+  normalizeVector(vector) {
+    const magnitude = Math.sqrt(vector.reduce((acc, val) => acc + val * val, 0));
+    return vector.map(val => val / magnitude);
+  }
+  
+  async checkEmbeddingSimilarity(embedding) {
+    try {
+      const similarMatch = await Blog.aggregate([
+        {
+          $vectorSearch: {
+            index: 'vectorIndex',
+            path: 'embedding',
+            queryVector: normalizeVector(embedding[0]),
+            numCandidates: 100,
+            limit: 1,
+            similarity: 'cosine'
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            distance: { $meta: "vectorSearchScore" },
+            title: 1
+          }
+        }
+      ]);
+      
+  
+      if (similarMatch.length > 0) {
+        const similarityScore = similarMatch[0].distance;
+        return {
+          isSimilar: true,
+          similarityScore,
+          similarPostId: similarMatch[0]._id,
+        };
+      }
+  
+      return { isSimilar: false, similarityScore: 0 };
+    } catch (err) {
+      logger.error(`Validator error (embedding similarity): ${err.message}`);
+      return { isSimilar: false, similarityScore: 0 };
+    }
+  }
+  
 }
   
 module.exports = new ValidatorService();

@@ -45,6 +45,7 @@ class BlogJob {
       });
       
       // Format the content
+      const embedding = rawContentData.embedding
       const contentData = contentService.formatContent(rawContentData);
       logger.info(`SUCCESSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS STEP 2`);
       
@@ -58,7 +59,8 @@ class BlogJob {
         content: contentData.content,
         category: topicData.category,
         subcategory: topicData.subcategory,
-        status: options.autoPublish ? 'published' : 'draft',
+        status:'published',
+        embedding: embedding,
         slug: slug,
         similarityScore: contentData.similarityScore || 0
       });

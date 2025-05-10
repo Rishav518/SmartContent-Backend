@@ -41,6 +41,10 @@ const BlogSchema = new mongoose.Schema({
     required: [true, 'Slug is required'],
     trim: true
   },
+  embedding: {
+    type: [[Number]],
+    default: []
+  },
   generatedAt: {
     type: Date,
     default: Date.now

@@ -1,6 +1,8 @@
 const Blog = require('../models/blog.model');
 const logger = require('../utils/logger');
 const { getPostBySlug } = require('../utils/slug');
+const { runOllamaEmbed } = require('../utils/modelService');
+const validatorService = require('./validator.service');
 /**
  * Service for publishing generated content to the database
  */
@@ -8,7 +10,7 @@ class PublisherService {
 
   async savePost(blogData) {
     try {
-      const { title, content, category, subcategory, slug } = blogData;
+      const { title, content, category, subcategory, slug, status, embedding, similarityScore } = blogData;
       
       // Validate required fields
      if (!title || !content) {
@@ -27,9 +29,10 @@ class PublisherService {
         content,
         category,
         subcategory,
-        status: blogData.status || 'draft',
-        slug: slug,
-        similarityScore: blogData.similarityScore || 0
+        status,
+        embedding,
+        slug,
+        similarityScore
       });
       
       // Save to database
@@ -316,6 +319,74 @@ class PublisherService {
       throw error;
     }
   }
+  
+  async generateEmbeddingForAllPosts() {
+    try {
+      const posts = await Blog.find({});
+      logger.info(`Generating embeddings for ${posts.length} posts`);
+  
+      const summary = { success: 0, skipped: 0, error: 0 };
+  
+      for (const [index, post] of posts.entries()) {
+        logger.info(`Generating embedding for post ${index + 1}/${posts.length}: ${post.title}`);
+  
+        try {
+          const embedding = await runOllamaEmbed(post.content);
+  
+          if (!embedding) {
+            logger.warn(`No embedding generated for post: ${post.title}`);
+            summary.skipped++;
+          } else {
+            await Blog.findByIdAndUpdate(post._id, { embedding });
+            logger.info(`Embedding saved for post: ${post.title}`);
+            summary.success++;
+          }
+        } catch (err) {
+          logger.error(`Failed to embed post: ${post.title} - ${err.message}`);
+          summary.error++;
+        }
+
+      }
+  
+      return {
+        success: true,
+        message: `Embeddings generated: ${summary.success}, skipped: ${summary.skipped}, errors: ${summary.error}`,
+      };
+    } catch (error) {
+      logger.error(`Error generating embeddings for all posts: ${error.message}`);
+      throw error;
+    }
+  }
+  async checkSimilarity(){
+    try {
+      const posts = await Blog.find({});
+      const similarityResults = await Promise.all(
+        posts.map(async (post) => {
+          const similarity = await validatorService.checkContentSimilarity(post.content);
+          //update the post with similarity score
+
+          
+          return {
+            postId: post._id,
+            title: post.title,
+            similarityScore: similarity.similarityScore,
+            isSimilar: similarity.isSimilar,
+          };
+        })
+      );
+      //update the posts with similarity score
+      const updatePromises = similarityResults.map(async (result) => {
+        await Blog.findByIdAndUpdate(result.postId, { similarityScore: result.similarityScore });
+      });
+      return {
+        similarityResults,
+      };  
+    } catch (error) {
+      logger.error(`Error checking similarity for all posts: ${error.message}`);
+      throw error;
+    }
+  }
+  
 }
 
 module.exports = new PublisherService();

@@ -340,6 +340,43 @@ class BlogController {
       });
     }
   }
+  async generateEmbeddingForAllPosts(req, res) {
+    try {
+      const result = await publisherService.generateEmbeddingForAllPosts();
+      res.status(200).json({
+        success: true,
+        message: 'Embeddings generated successfully',
+        result,
+      });
+    } catch (error) {
+      logger.error(`Error in generateEmbeddingForAllPosts controller: ${error.message}`);
+      res.status(500).json({
+        success: false,
+        message: 'Server error',
+        error: error.message,
+      });
+    }
+  }
+  async checkSimilarity(req, res) {
+    try {
+      // get all posts then check similarity on all of them
+      const result = await publisherService.checkSimilarity();
+      return res.status(200).json({ 
+        success: true,
+        message: 'Similarity check completed',
+        result,
+      });
+    }catch (error) {
+      logger.error(`Error in checkSimilarity controller: ${error.message}`);
+      return res.status(500).json({
+        success: false,
+        message: 'Server error',
+        error: error.message,
+      });
+    }
+
+
+  }
 }
 
 module.exports = new BlogController();

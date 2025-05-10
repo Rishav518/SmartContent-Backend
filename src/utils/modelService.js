@@ -1,32 +1,43 @@
-const { spawn } = require('child_process');
+const axios = require('axios');
 const logger = require('./logger');
 const Blog = require('../models/blog.model');
 
-// Reusable function to run any prompt with the Gemma model
-function runOllamaModel(prompt) {
-  return new Promise((resolve, reject) => {
-    const model = spawn('ollama', ['run', 'gemma3:1b']);
+const OLLAMA_HOST = 'http://127.0.0.1:11434';
+const GEMMA_MODEL = 'gemma3:1b';
+const EMBED_MODEL = 'nomic-embed-text';
 
-    let output = '';
-    let errorOutput = '';
-
-    model.stdout.on('data', (data) => output += data.toString());
-    model.stderr.on('data', (data) => errorOutput += data.toString());
-
-    model.on('close', (code) => {
-      if (code !== 0) {
-        logger.error(`Ollama model failed with code ${code}: ${errorOutput}`);
-        return reject(new Error(errorOutput.trim()));
-      }
-      resolve(output.trim());
+// Run prompt through Gemma model
+async function runOllamaModel(prompt) {
+  try {
+    const response = await axios.post(`${OLLAMA_HOST}/api/generate`, {
+      model: GEMMA_MODEL,
+      prompt,
+      stream: false
     });
 
-    model.stdin.write(prompt + '\n');
-    model.stdin.end();
-  });
+    return response.data.response.trim();
+  } catch (err) {
+    logger.error(`Ollama generate error: ${err.message}`);
+    throw err;
+  }
 }
 
-// Generate a blog topic based on categories and subcategories
+// Run embedding model on input text
+async function runOllamaEmbed(text) {
+  try {
+    const response = await axios.post(`${OLLAMA_HOST}/api/embed`, {
+      model: EMBED_MODEL,
+      input: text
+    });
+    const data = response.data.embeddings;
+    return data;
+  } catch (err) {
+    logger.error(`Ollama embed error: ${err.message}`);
+    throw err;
+  }
+}
+
+// Generate a blog topic
 async function generateTopicWithModel({ prompt, categories = [], subcategories = {} }) {
   try {
     const selectedCategory = categories[Math.floor(Math.random() * categories.length)];
@@ -49,7 +60,6 @@ async function generateTopicWithModel({ prompt, categories = [], subcategories =
       };
     } catch (e) {
       logger.warn('Failed to parse JSON. Trying to extract title line.');
-
       const lines = output.split('\n').map(line => line.trim()).filter(Boolean);
       const titleLine = lines.find(line => line.startsWith('**') && line.endsWith('**'));
       const cleanedTitle = titleLine ? titleLine.replace(/\*\*/g, '') : '';
@@ -66,7 +76,7 @@ async function generateTopicWithModel({ prompt, categories = [], subcategories =
   }
 }
 
-// Generate a blog post from a title and category context
+// Generate blog content
 async function generateContentWithModel({ title, category, subcategory, minWords, maxWords, tone }) {
   try {
     const prompt = `
@@ -92,16 +102,16 @@ Return only the content (no metadata or explanation).
   }
 }
 
-// Fetch and normalize all existing blog titles
+// Get existing blog titles
 async function getAllBlogTitles() {
   const blogs = await Blog.find({}, { title: 1, _id: 0 });
   return blogs.map(b => b.title.toLowerCase().trim());
 }
 
-// Optional export if direct Gemma use is needed elsewhere
 module.exports = {
   generateTopicWithModel,
   generateContentWithModel,
   getAllBlogTitles,
-  runOllamaModel
+  runOllamaModel,
+  runOllamaEmbed
 };

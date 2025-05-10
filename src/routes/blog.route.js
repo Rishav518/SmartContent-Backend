@@ -2,8 +2,9 @@ const express = require('express');
 const blogController = require('../controllers/blog.controller');
 
 const router = express.Router();
-
+// router.get('/posts/check-similarity', blogController.checkSimilarity);
 router.get('/posts/categories', blogController.getCategories);
+// router.patch('/posts/embedding', blogController.generateEmbeddingForAllPosts);
 router.get('/posts/stats', blogController.getStats);
 router.get('/posts/slugs', blogController.getAllSlugs);
 router.get('/posts/slug/:slug', blogController.getPostBySlug);
